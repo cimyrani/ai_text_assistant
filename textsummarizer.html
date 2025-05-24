@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Text Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            position: relative; /* Needed for positioning the custom context menu */
+        }
+        .chatbot-container {
+            background-color: #ffffff;
+            border-radius: 1.5rem; /* Increased rounded corners */
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px; /* Increased max-width for better content display */
+            height: 90vh; /* Make it take up more vertical space */
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .chat-history-section {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            overflow: hidden; /* Ensure content inside doesn't overflow */
+        }
+        .history-header {
+            padding: 1rem 1.5rem 0.5rem;
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #374151;
+            background-color: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .chat-history {
+            flex-grow: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+            background-color: #f9fafb;
+            scroll-behavior: smooth;
+            position: relative; /* Needed for positioning the custom context menu */
+        }
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: flex-start;
+        }
+        /* User messages (on the right) */
+        .message.user {
+            justify-content: flex-end; /* Align user message to the right */
+        }
+        .message.user .message-bubble {
+            background-color: #d1e7dd; /* Light green for user messages */
+            color: #1a5e3f;
+            margin-left: auto; /* Push user bubble to the right */
+            border-bottom-right-radius: 1.25rem; /* More rounded on bottom-right */
+            border-top-right-radius: 1.25rem; /* More rounded on top-right */
+            border-bottom-left-radius: 0.5rem; /* Less rounded on bottom-left */
+            border-top-left-radius: 0.5rem; /* Less rounded on top-left */
+            text-align: right; /* Right align text inside user message */
+            cursor: context-menu; /* Indicate right-click interaction */
+            user-select: text; /* Allow text selection */
+        }
+        /* Bot messages (on the left) */
+        .message.bot {
+            justify-content: flex-start; /* Align bot message to the left */
+        }
+        .message.bot .message-bubble {
+            background-color: #e0f2f7; /* Light blue for bot messages */
+            color: #0c4a6e;
+            margin-right: auto; /* Push bot bubble to the left */
+            border-bottom-left-radius: 1.25rem; /* More rounded on bottom-left */
+            border-top-left-radius: 1.25rem; /* More rounded on top-left */
+            border-bottom-right-radius: 0.5rem; /* Less rounded on bottom-right */
+            border-top-right-radius: 0.5rem; /* Less rounded on top-right */
+            text-align: left; /* Left align text inside bot message */
+            cursor: context-menu; /* Indicate right-click interaction */
+            user-select: text; /* Allow text selection */
+        }
+        .message-bubble {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 1.25rem; /* Default for general bubble shape */
+            word-wrap: break-word;
+            white-space: pre-wrap; /* Preserve whitespace and line breaks */
+            line-height: 1.5;
+            position: relative; /* Needed for positioning custom menu relative to the bubble */
+        }
+        .message-sender {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem; /* Smaller sender text */
+            opacity: 0.7;
+        }
+        .input-area {
+            padding: 1.5rem;
+            background-color: #ffffff;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        textarea {
+            resize: vertical; /* Allow vertical resizing */
+            min-height: 80px; /* Minimum height for textarea */
+            max-height: 200px; /* Maximum height for textarea */
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid #d1d5db;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        textarea:focus {
+            border-color: #2563eb; /* Blue on focus */
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
+            gap: 0.75rem;
+            justify-content: flex-end; /* Align buttons to the right */
+        }
+        .action-button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .action-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .action-button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+        .primary-button {
+            background-color: #2563eb; /* Blue */
+            color: white;
+        }
+        .primary-button:hover {
+            background-color: #1d4ed8; /* Darker blue */
+        }
+        .secondary-button {
+            background-color: #f3f4f6; /* Light gray */
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        .secondary-button:hover {
+            background-color: #e5e7eb; /* Darker light gray */
+        }
+        .clear-history-button-red {
+            background-color: #dc2626; /* Red */
+            color: white;
+            border: 1px solid #dc2626; /* Red border */
+        }
+        .clear-history-button-red:hover {
+            background-color: #b91c1c; /* Darker red on hover */
+            border-color: #b91c1c;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #2563eb;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .copy-success-message {
+            background-color: #d1e7dd;
+            color: #1a5e3f;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .copy-success-message.show {
+            opacity: 1;
+        }
+        /* Custom context menu styles */
+        #custom-context-menu {
+            position: absolute;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            display: none; /* Hidden by default */
+            padding: 0.5rem 0;
+        }
+        .context-menu-item {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: #374151;
+            transition: background-color 0.15s ease-in-out;
+        }
+        .context-menu-item:hover {
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="chatbot-container">
+        <div class="chat-history-section">
+            <div class="history-header">Text Summarizer and Grammar Checker </div>
+            <div class="chat-history" id="chat-history">
+                <div class="message bot">
+                    <div class="message-bubble">
+                        <div class="message-sender">AI Assistant</div>
+                        Hello! I can help you summarize text or check its grammar. Type your text below and choose an action.
+                    </div>
+                </div>
+            </div>
+            </div>
+        <div class="input-area">
+            <textarea id="text-input" placeholder="Enter your text here..." rows="4" class="w-full"></textarea>
+            <div class="button-group">
+                <button id="summarize-button" class="action-button primary-button">
+                    <span id="summarize-loading" class="hidden loading-spinner"></span>
+                    Summarize Text
+                </button>
+                <button id="grammar-check-button" class="action-button primary-button">
+                    <span id="grammar-loading" class="hidden loading-spinner"></span>
+                    Grammar Check
+                </button>
+                <button id="copy-summary-button" class="action-button secondary-button hidden">
+                    Copy Summary
+                </button>
+                <button id="clear-text-button" class="action-button secondary-button">
+                    Clear Text
+                </button>
+                <button id="clear-history-button" class="action-button clear-history-button-red">
+                    Clear History
+                </button>
+            </div>
+            <div id="copy-success" class="copy-success-message hidden">Summary copied to clipboard!</div>
+        </div>
+    </div>
+
+    <div id="custom-context-menu">
+        <div class="context-menu-item" id="copy-message">Copy</div>
+    </div>
+
+    <script>
+        // Get references to DOM elements
+        const textInput = document.getElementById('text-input');
+        const chatHistory = document.getElementById('chat-history');
+        const summarizeButton = document.getElementById('summarize-button');
+        const grammarCheckButton = document.getElementById('grammar-check-button');
+        const copySummaryButton = document.getElementById('copy-summary-button');
+        const clearTextButton = document.getElementById('clear-text-button');
+        const clearHistoryButton = document.getElementById('clear-history-button');
+        const summarizeLoading = document.getElementById('summarize-loading');
+        const grammarLoading = document.getElementById('grammar-loading');
+        const copySuccessMessage = document.getElementById('copy-success');
+        const customContextMenu = document.getElementById('custom-context-menu');
+        const copyMessageItem = document.getElementById('copy-message');
+
+        let lastSummary = '';
+        let currentMessageText = ''; // To store the text of the message being right-clicked
+
+        /**
+         * Appends a message to the chat history display.
+         * @param {string} sender - The sender of the message ('user' or 'bot').
+         * @param {string} message - The message content.
+         * @param {string} type - The type of message (e.g., 'summary', 'grammar', 'user-input').
+         */
+        function displayMessage(sender, message, type = '') {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('message-bubble');
+
+            const senderSpan = document.createElement('div');
+            senderSpan.classList.add('message-sender');
+            senderSpan.textContent = sender === 'user' ? 'You' : 'AI Assistant';
+
+            if (sender === 'bot' && type) {
+                const typeLabel = document.createElement('span');
+                typeLabel.classList.add('font-normal', 'text-xs', 'ml-2', 'opacity-70');
+                if (type === 'summary') typeLabel.textContent = '(Summary)';
+                if (type === 'grammar') typeLabel.textContent = '(Grammar Check)';
+                senderSpan.appendChild(typeLabel);
+            }
+
+            messageBubble.appendChild(senderSpan);
+            messageBubble.appendChild(document.createTextNode(message));
+
+            // Add event listener for custom context menu
+            messageBubble.addEventListener('contextmenu', showCustomContextMenu);
+
+            messageDiv.appendChild(messageBubble);
+            chatHistory.appendChild(messageDiv);
+
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function showCustomContextMenu(event) {
+            event.preventDefault(); // Prevent the browser's default context menu
+
+            const messageBubble = event.target.closest('.message-bubble');
+            if (messageBubble) {
+                // Extract text, removing sender and type labels
+                let textContent = messageBubble.textContent;
+                textContent = textContent.replace(/^You\s*\(Summary\)\s*|^You\s*\(Grammar Check\)\s*|^You\s*|^AI Assistant\s*\(Summary\)\s*|^AI Assistant\s*\(Grammar Check\)\s*|^AI Assistant\s*/, '').trim();
+                currentMessageText = textContent;
+
+                // Position the custom menu
+                customContextMenu.style.left = event.clientX + 'px';
+                customContextMenu.style.top = event.clientY + 'px';
+                customContextMenu.style.display = 'block';
+            }
+        }
+
+        function hideCustomContextMenu() {
+            customContextMenu.style.display = 'none';
+        }
+
+        // Hide custom context menu when clicking anywhere else on the document
+        document.addEventListener('click', (event) => {
+            if (!customContextMenu.contains(event.target)) {
+                hideCustomContextMenu();
+            }
+        });
+
+        copyMessageItem.addEventListener('click', () => {
+            if (currentMessageText) {
+                const textarea = document.createElement('textarea');
+                textarea.value = currentMessageText;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    copySuccessMessage.classList.remove('hidden');
+                    copySuccessMessage.classList.add('show');
+                    setTimeout(() => {
+                        copySuccessMessage.classList.remove('show');
+                        setTimeout(() => copySuccessMessage.classList.add('hidden'), 300);
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    displayMessage('bot', 'Failed to copy message. Please manually select and copy the text.', 'error');
+                } finally {
+                    document.body.removeChild(textarea);
+                    hideCustomContextMenu(); // Hide menu after copying
+                }
+            } else {
+                displayMessage('bot', 'No message content to copy.', 'info');
+                hideCustomContextMenu(); // Hide menu if nothing to copy
+            }
+        });
+
+        /**
+         * Makes an API call to the Gemini 2.0 Flash model for text generation.
+         * @param {string} prompt - The prompt to send to the LLM.
+         * @returns {Promise<string>} - The generated text response.
+         */
+        async function callGeminiAPI(prompt) {
+            let chatHistoryForAPI = [];
+            chatHistoryForAPI.push({ role: "user", parts: [{ text: prompt }] });
+
+            const payload = { contents: chatHistoryForAPI };
+            // The API key is left empty; the environment will provide it at runtime.
+            const apiKey = "AIzaSyCljpQ5zPMklILGnYO5krYkpdIVNLMXbss";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('API Error:', errorData);
+                    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+                }
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    console.warn('Unexpected API response structure:', result);
+                    return 'Could not get a valid response from the AI. Please try again.';
+                }
+            } catch (error) {
+                console.error('Error calling Gemini API:', error);
+                return `An error occurred: ${error.message}. Please check your input or try again later.`;
+            }
+        }
+
+        /**
+         * Handles the summarization request.
+         */
+        async function handleSummarize() {
+            const text = textInput.value.trim();
+            if (!text) {
+                displayMessage('bot', 'Please enter some text to summarize.', 'info');
+                return;
+            }
+
+            displayMessage('user', text);
+            textInput.value = ''; // Clear input after sending
+
+            summarizeButton.disabled = true;
+            grammarCheckButton.disabled = true;
+            summarizeLoading.classList.remove('hidden');
+            copySummaryButton.classList.add('hidden'); // Hide copy button until new summary
+
+            try {
+                const prompt = `Please summarize the following text concisely and clearly:\n\n"${text}"`;
+                const summary = await callGeminiAPI(prompt);
+                displayMessage('bot', summary, 'summary');
+                lastSummary = summary; // Store the summary
+                copySummaryButton.classList.remove('hidden'); // Show copy button
+            } finally {
+                summarizeButton.disabled = false;
+                grammarCheckButton.disabled = false;
+                summarizeLoading.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Handles the grammar check request.
+         */
+        async function handleGrammarCheck() {
+            const text = textInput.value.trim();
+            if (!text) {
+                displayMessage('bot', 'Please enter some text to check grammar.', 'info');
+                return;
+            }
+
+            displayMessage('user', text);
+            textInput.value = ''; // Clear input after sending
+
+            summarizeButton.disabled = true;
+            grammarCheckButton.disabled = true;
+            grammarLoading.classList.remove('hidden');
+            copySummaryButton.classList.add('hidden'); // Hide copy button as this is not a summary
+
+            try {
+                const prompt = `Please act as a grammar and spelling checker. Review the following text and provide corrections. If there are no errors, state that the text is grammatically correct. Format your response clearly, showing original and corrected parts if applicable:\n\n"${text}"`;
+                const corrections = await callGeminiAPI(prompt);
+                displayMessage('bot', corrections, 'grammar');
+            } finally {
+                summarizeButton.disabled = false;
+                grammarCheckButton.disabled = false;
+                grammarLoading.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Copies the last generated summary to the clipboard.
+         */
+        function copySummary() {
+            if (lastSummary) {
+                // Using document.execCommand('copy') as navigator.clipboard.writeText() might be restricted in iframes.
+                const textarea = document.createElement('textarea');
+                textarea.value = lastSummary;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    copySuccessMessage.classList.remove('hidden');
+                    copySuccessMessage.classList.add('show');
+                    setTimeout(() => {
+                        copySuccessMessage.classList.remove('show');
+                        setTimeout(() => copySuccessMessage.classList.add('hidden'), 300); // Hide after transition
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    // Fallback for older browsers or restricted environments
+                    displayMessage('bot', 'Failed to copy summary. Please manually select and copy the text from the chat history.', 'error');
+                } finally {
+                    document.body.removeChild(textarea);
+                }
+            } else {
+                displayMessage('bot', 'No summary to copy yet. Please generate a summary first.', 'info');
+            }
+        }
+
+        /**
+         * Clears the input text area.
+         */
+        function clearTextInput() {
+            textInput.value = '';
+        }
+
+        /**
+         * Clears the chat history and resets the state.
+         */
+        function clearHistory() {
+            chatHistory.innerHTML = `
+                <div class="message bot">
+                    <div class="message-bubble">
+                        <div class="message-sender">AI Assistant</div>
+                        Hello! I can help you summarize text or check its grammar. Type your text below and choose an action.
+                    </div>
+                </div>
+            `;
+            lastSummary = '';
+            copySummaryButton.classList.add('hidden');
+            // textInput.value is not cleared here, as there's a separate "Clear Text" button for that.
+        }
+
+        // Event Listeners
+        summarizeButton.addEventListener('click', handleSummarize);
+        grammarCheckButton.addEventListener('click', handleGrammarCheck);
+        copySummaryButton.addEventListener('click', copySummary);
+        clearTextButton.addEventListener('click', clearTextInput);
+        clearHistoryButton.addEventListener('click', clearHistory);
+
+        // Allow pressing Enter to submit text for summarization (default action)
+        textInput.addEventListener('keydown', (e) => {
+            // Only prevent default and trigger action if Shift is NOT pressed
+            if (e.key === 'Enter' && !e.shiftKey) {
+                // Do nothing here, allowing default newline behavior
+            }
+        });
+    </script>
+</body>
+</html>
